@@ -1,4 +1,25 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+// Resolve the API base lazily so we can fall back to a sensible default at
+// runtime when no NEXT_PUBLIC_API_BASE_URL is set:
+//   - local dev (hostname=localhost / 127.0.0.1): http://localhost:8000
+//   - any other origin (Vercel deploy etc.): /_/backend (per vercel.json)
+function resolveApiBase(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") {
+      return "http://localhost:8000";
+    }
+    return "/_/backend";
+  }
+  // SSR / build time — default to local dev. The fetch helpers below run in
+  // the browser, so this branch is only hit if something weird ever calls
+  // them server-side (not currently the case).
+  return "http://localhost:8000";
+}
+
+export const API_BASE = resolveApiBase();
 export const MAP_STYLE_URL =
   process.env.NEXT_PUBLIC_MAP_STYLE_URL ?? "https://tiles.openfreemap.org/styles/liberty";
 
