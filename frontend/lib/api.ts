@@ -7,17 +7,26 @@
 //   - browser at localhost / 127.0.0.1 / 0.0.0.0                       → http://localhost:8000
 //   - any other browser origin (Vercel deploy etc., per vercel.json)   → /_/backend
 //   - non-browser context (SSR, tests)                                 → http://localhost:8000
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+const LOCAL_HOST_URL = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?\/?$/i;
+
 export function getApiBase(): string {
   const raw = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").trim();
-  // A bare "/" override is almost always an env-var typo; ignore it
-  // (otherwise `${base}/scenarios/...` produces `//scenarios/...`).
-  if (raw && raw !== "/") return raw.replace(/\/+$/, "");
+  const onBrowser = typeof window !== "undefined";
+  const browserOnLocalhost = onBrowser && LOCAL_HOSTS.has(window.location.hostname);
 
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname;
-    if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") {
-      return "http://localhost:8000";
+  if (raw && raw !== "/") {
+    // Ignore a localhost-pointing env var when the page itself is on a
+    // remote origin (e.g. Vercel imported the value from .env.example).
+    // Otherwise fetches from production would try to reach localhost.
+    const envIsLocal = LOCAL_HOST_URL.test(raw);
+    if (!(envIsLocal && onBrowser && !browserOnLocalhost)) {
+      return raw.replace(/\/+$/, "");
     }
+  }
+
+  if (onBrowser) {
+    if (browserOnLocalhost) return "http://localhost:8000";
     return "/_/backend";
   }
   return "http://localhost:8000";
