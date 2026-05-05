@@ -10,6 +10,7 @@ seabeacon.main:app`) continues to use the package-internal entrypoint.
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -74,11 +75,22 @@ async def lifespan(_: FastAPI):
         logger.warning("bot shutdown error: %s", exc)
 
 
+# When deployed behind a path prefix (Vercel mounts this service at
+# /_/backend per vercel.json), FastAPI must know about the prefix so its
+# generated redirect Location headers and OpenAPI URLs include it. Disabling
+# redirect_slashes also avoids the 308 → 404 chain when the request URL has a
+# trailing slash that doesn't match the registered route.
+_ROOT_PATH = os.getenv("FASTAPI_ROOT_PATH", "")
+if not _ROOT_PATH and os.getenv("VERCEL"):
+    _ROOT_PATH = "/_/backend"
+
 app = FastAPI(
     title="SEABeacon API",
     version="0.1.0",
     description="Cross-border disaster early-warning demo for ASEAN.",
     lifespan=lifespan,
+    root_path=_ROOT_PATH,
+    redirect_slashes=False,
 )
 
 app.add_middleware(
