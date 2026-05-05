@@ -1,8 +1,13 @@
-// Resolve the API base lazily so we can fall back to a sensible default at
-// runtime when no NEXT_PUBLIC_API_BASE_URL is set:
-//   - local dev (hostname=localhost / 127.0.0.1): http://localhost:8000
-//   - any other origin (Vercel deploy etc.): /_/backend (per vercel.json)
-function resolveApiBase(): string {
+// Resolve the API base on every fetch (not at module load) so the value is
+// chosen in the actual browser context — not the Node prerender context where
+// `window` is undefined and we'd otherwise bake `localhost:8000` into the
+// shipped bundle.
+//
+//   - explicit override via NEXT_PUBLIC_API_BASE_URL                  → use it
+//   - browser at localhost / 127.0.0.1 / 0.0.0.0                      → http://localhost:8000
+//   - any other browser origin (Vercel deploy etc., per vercel.json)  → /_/backend
+//   - non-browser context (SSR, tests)                                → http://localhost:8000
+export function getApiBase(): string {
   const fromEnv = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (fromEnv && fromEnv.length > 0) return fromEnv;
 
@@ -13,13 +18,9 @@ function resolveApiBase(): string {
     }
     return "/_/backend";
   }
-  // SSR / build time — default to local dev. The fetch helpers below run in
-  // the browser, so this branch is only hit if something weird ever calls
-  // them server-side (not currently the case).
   return "http://localhost:8000";
 }
 
-export const API_BASE = resolveApiBase();
 export const MAP_STYLE_URL =
   process.env.NEXT_PUBLIC_MAP_STYLE_URL ?? "https://tiles.openfreemap.org/styles/liberty";
 
@@ -86,13 +87,13 @@ export interface ScenarioDetail {
 }
 
 export async function getScenario(slug: string): Promise<ScenarioDetail> {
-  const res = await fetch(`${API_BASE}/scenarios/${slug}`);
+  const res = await fetch(`${getApiBase()}/scenarios/${slug}`);
   if (!res.ok) throw new Error(`failed to fetch scenario: ${res.status}`);
   return res.json();
 }
 
 export async function startScenario(slug: string, speed = 60): Promise<void> {
-  const res = await fetch(`${API_BASE}/scenarios/${slug}/run`, {
+  const res = await fetch(`${getApiBase()}/scenarios/${slug}/run`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ speed }),
@@ -101,7 +102,7 @@ export async function startScenario(slug: string, speed = 60): Promise<void> {
 }
 
 export async function stopScenario(slug: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/scenarios/${slug}/stop`, { method: "POST" });
+  const res = await fetch(`${getApiBase()}/scenarios/${slug}/stop`, { method: "POST" });
   if (!res.ok) throw new Error(`failed to stop scenario: ${res.status}`);
 }
 
@@ -122,7 +123,7 @@ export async function seekScenario(
   scenarioTime: string,
   opts: { resume?: boolean; speed?: number } = {}
 ): Promise<SeekResponse> {
-  const res = await fetch(`${API_BASE}/scenarios/${slug}/seek`, {
+  const res = await fetch(`${getApiBase()}/scenarios/${slug}/seek`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({

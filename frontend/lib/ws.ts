@@ -1,6 +1,6 @@
 "use client";
 
-import { API_BASE } from "./api";
+import { getApiBase } from "./api";
 
 export type SseHandlers = {
   onState?: (data: any) => void;
@@ -12,7 +12,7 @@ export type SseHandlers = {
 };
 
 export function openScenarioStream(slug: string, handlers: SseHandlers): EventSource {
-  const url = `${API_BASE}/events/${slug}`;
+  const url = `${getApiBase()}/events/${slug}`;
   const es = new EventSource(url);
 
   const dispatch = (name: string, cb?: (d: any) => void) =>
