@@ -26,7 +26,7 @@ dev = [
 
 # Vercel's FastAPI runtime locates the ASGI app through this entry.
 [project.scripts]
-app = "seabeacon.main:app"
+app = "main:app"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
