@@ -24,6 +24,10 @@ dev = [
     "pytest-asyncio>=0.23",
 ]
 
+# Vercel's FastAPI runtime locates the ASGI app through this entry.
+[project.scripts]
+app = "seabeacon.main:app"
+
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
