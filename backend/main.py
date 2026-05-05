@@ -36,7 +36,14 @@ logger = logging.getLogger("seabeacon")
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    init_db()
+    # Each step is independently fault-tolerant so a serverless cold-start
+    # never returns FUNCTION_INVOCATION_FAILED — the API endpoints come up
+    # even if the bot or seed step can't run.
+    try:
+        init_db()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("init_db failed: %s", exc)
+
     try:
         from seabeacon.seed import seed_all
         seed_all()
@@ -55,9 +62,12 @@ async def lifespan(_: FastAPI):
 
     yield
 
-    runner = get_runner()
-    for slug in list(runner.runs.keys()):
-        await runner.stop(slug)
+    try:
+        runner = get_runner()
+        for slug in list(runner.runs.keys()):
+            await runner.stop(slug)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("scenario shutdown error: %s", exc)
     try:
         await lifespan_stop()
     except Exception as exc:  # noqa: BLE001
