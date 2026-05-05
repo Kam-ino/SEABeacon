@@ -3,13 +3,15 @@
 // `window` is undefined and we'd otherwise bake `localhost:8000` into the
 // shipped bundle.
 //
-//   - explicit override via NEXT_PUBLIC_API_BASE_URL                  → use it
-//   - browser at localhost / 127.0.0.1 / 0.0.0.0                      → http://localhost:8000
-//   - any other browser origin (Vercel deploy etc., per vercel.json)  → /_/backend
-//   - non-browser context (SSR, tests)                                → http://localhost:8000
+//   - explicit override via NEXT_PUBLIC_API_BASE_URL (when meaningful) → use it
+//   - browser at localhost / 127.0.0.1 / 0.0.0.0                       → http://localhost:8000
+//   - any other browser origin (Vercel deploy etc., per vercel.json)   → /_/backend
+//   - non-browser context (SSR, tests)                                 → http://localhost:8000
 export function getApiBase(): string {
-  const fromEnv = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (fromEnv && fromEnv.length > 0) return fromEnv;
+  const raw = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").trim();
+  // A bare "/" override is almost always an env-var typo; ignore it
+  // (otherwise `${base}/scenarios/...` produces `//scenarios/...`).
+  if (raw && raw !== "/") return raw.replace(/\/+$/, "");
 
   if (typeof window !== "undefined") {
     const host = window.location.hostname;
@@ -19,6 +21,14 @@ export function getApiBase(): string {
     return "/_/backend";
   }
   return "http://localhost:8000";
+}
+
+// Join the resolved base with a path, guaranteeing exactly one slash between
+// them regardless of how either side ends/begins.
+export function url(path: string): string {
+  const base = getApiBase().replace(/\/+$/, "");
+  const tail = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${tail}`;
 }
 
 export const MAP_STYLE_URL =
@@ -87,13 +97,13 @@ export interface ScenarioDetail {
 }
 
 export async function getScenario(slug: string): Promise<ScenarioDetail> {
-  const res = await fetch(`${getApiBase()}/scenarios/${slug}`);
+  const res = await fetch(url(`/scenarios/${slug}`));
   if (!res.ok) throw new Error(`failed to fetch scenario: ${res.status}`);
   return res.json();
 }
 
 export async function startScenario(slug: string, speed = 60): Promise<void> {
-  const res = await fetch(`${getApiBase()}/scenarios/${slug}/run`, {
+  const res = await fetch(url(`/scenarios/${slug}/run`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ speed }),
@@ -102,7 +112,7 @@ export async function startScenario(slug: string, speed = 60): Promise<void> {
 }
 
 export async function stopScenario(slug: string): Promise<void> {
-  const res = await fetch(`${getApiBase()}/scenarios/${slug}/stop`, { method: "POST" });
+  const res = await fetch(url(`/scenarios/${slug}/stop`), { method: "POST" });
   if (!res.ok) throw new Error(`failed to stop scenario: ${res.status}`);
 }
 
@@ -123,7 +133,7 @@ export async function seekScenario(
   scenarioTime: string,
   opts: { resume?: boolean; speed?: number } = {}
 ): Promise<SeekResponse> {
-  const res = await fetch(`${getApiBase()}/scenarios/${slug}/seek`, {
+  const res = await fetch(url(`/scenarios/${slug}/seek`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
